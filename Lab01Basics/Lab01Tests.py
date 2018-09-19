@@ -8,13 +8,13 @@
 # $ py.test test_file_name.py
 
 ###########################
-# Group Members: TODO
+# Group Members: Jad Wahab
 ###########################
 
 
 #####################################################
 # TASK 1 -- Ensure petlib is installed on the System
-#           and also pytest. Ensure the Lab Code can 
+#           and also pytest. Ensure the Lab Code can
 #           be imported.
 
 import pytest
@@ -27,25 +27,25 @@ except:
 @pytest.mark.task1
 def test_petlib_present():
     """
-    Try to import Petlib and pytest to ensure they are 
-    present on the system, and accessible to the python 
+    Try to import Petlib and pytest to ensure they are
+    present on the system, and accessible to the python
     environment
     """
-    import petlib 
+    import petlib
     import pytest
     assert True
 
 @pytest.mark.task1
 def test_code_present():
     """
-    Try to import the code file. 
+    Try to import the code file.
     This is where the lab answers will be.
     """
     assert True
 
 
 #####################################################
-# TASK 2 -- Symmetric encryption using AES-GCM 
+# TASK 2 -- Symmetric encryption using AES-GCM
 #           (Galois Counter Mode)
 
 @pytest.mark.task2
@@ -168,7 +168,7 @@ def test_Point_addition():
     assert is_point_on_curve(a, b, p, xp, yp)
     assert xp == gx1
     assert yp == gy1
-    
+
     xp, yp = point_add(a, b, p, None, None, gx0, gy0)
     assert is_point_on_curve(a, b, p, xp, yp)
     assert gx0 == xp
@@ -278,9 +278,9 @@ def test_Point_scalar_mult_montgomerry_ladder():
 #####################################################
 # TASK 4 -- Standard ECDSA signatures
 #
-#          - Implement a key / param generation 
+#          - Implement a key / param generation
 #          - Implement ECDSA signature using petlib.ecdsa
-#          - Implement ECDSA signature verification 
+#          - Implement ECDSA signature verification
 #            using petlib.ecdsa
 
 @pytest.mark.task4
@@ -331,3 +331,99 @@ def test_check_fail():
 @pytest.mark.task5
 def test_key_gen():
     G, priv, pub = dh_get_key()
+
+@pytest.mark.task5
+def test_dh_encrypt():
+    """ Tests encryption with DH """
+
+    A_keys = dh_get_key()
+
+    G, priv_B, pub_B = dh_get_key()
+
+    message = u"Hello World!"
+
+    iv, ciphertext, tag, pub_A, sig = dh_encrypt(pub_B, message, A_keys)
+
+    assert len(iv) == 16
+    assert len(ciphertext) == len(message)
+    assert len(tag) == 16
+
+@pytest.mark.task5
+def test_dh_decrypt():
+    """ Tests decryption with DH """
+    A_keys = dh_get_key()
+
+    G, priv_B, pub_B = dh_get_key()
+
+    message = u"Hello World!"
+
+    #iv, ciphertext, tag, pub_A, sig = dh_encrypt(pub_B, message)
+    CIPHER = dh_encrypt(pub_B, message, A_keys)
+
+    assert len(CIPHER[0]) == 16
+    assert len(CIPHER[1]) == len(message)
+    assert len(CIPHER[2]) == 16
+
+    m, sig = dh_decrypt(priv_B, CIPHER, A_keys)
+    assert m == message
+
+    assert sig ==  True
+
+@pytest.mark.task5
+def test_dh_fails():
+    from pytest import raises
+
+    from os import urandom
+
+    A_keys = dh_get_key()
+
+    G, priv_B, pub_B = dh_get_key()
+
+    message = u"Hello World!"
+
+    #iv, ciphertext, tag, pub_A, sig = dh_encrypt(pub_B, message)
+    CIPHER = dh_encrypt(pub_B, message, A_keys)
+    #CIPHER[0] -> iv
+    #CIPHER[1] -> ciphertext
+    #CIPHER[2] -> tag
+    #CIPHER[3] -> pub_A
+    #CIPHER[4] -> sig
+
+    m, sig = dh_decrypt(priv_B, CIPHER, A_keys)
+
+    #use random iv
+    CIPHER1 = [urandom(len(CIPHER[0])), CIPHER[1], CIPHER[2], CIPHER[3], CIPHER[4]]
+    with raises(Exception) as excinfo:
+        dh_decrypt(priv_B, CIPHER1, A_keys)
+    assert 'decryption failed' in str(excinfo.value)
+
+    #use random ciphertext
+    CIPHER2 = [CIPHER[0], urandom(len(CIPHER[1])), CIPHER[2], CIPHER[3], CIPHER[4]]
+    with raises(Exception) as excinfo:
+        dh_decrypt(priv_B, CIPHER2, A_keys)
+    assert 'decryption failed' in str(excinfo.value)
+
+    #use random tag
+    CIPHER3 = [CIPHER[0], CIPHER[1], urandom(len(CIPHER[2])), CIPHER[3], CIPHER[4]]
+    with raises(Exception) as excinfo:
+        dh_decrypt(priv_B, CIPHER3, A_keys)
+    assert 'decryption failed' in str(excinfo.value)
+
+    #use random public key
+    G, priv_rand, pub_rand = dh_get_key()
+    CIPHER4 = [CIPHER[0], CIPHER[1], CIPHER[2], pub_rand, CIPHER[4]]
+    with raises(Exception) as excinfo:
+        dh_decrypt(priv_B, CIPHER4, A_keys)
+    assert 'decryption failed' in str(excinfo.value)
+
+    #use random verification key
+    G_rand, priv_rand, pub_rand = dh_get_key()
+    plaintext = message.encode("utf8")
+    digest = sha256(plaintext).digest()
+    sig_rand = do_ecdsa_sign(G_rand, priv_rand, digest)
+    sig_rand[0].int_add(Bn(3))
+    sig_rand[1].int_add(Bn(3))
+    CIPHER5 = [CIPHER[0], CIPHER[1], CIPHER[2], CIPHER[3], sig_rand]
+    with raises(Exception) as excinfo:
+        dh_decrypt(priv_B, CIPHER5, A_keys)
+    assert 'decryption failed' in str(excinfo.value)

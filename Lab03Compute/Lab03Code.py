@@ -13,7 +13,7 @@
 #
 
 ###########################
-# Group Members: TODO
+# Group Members: Jad Wahab
 ###########################
 
 
@@ -30,8 +30,10 @@ def setup():
 def keyGen(params):
    """ Generate a private / public key pair """
    (G, g, h, o) = params
-   
+
    # ADD CODE HERE
+      priv = o.random()
+      pub = priv * g
 
    return (priv, pub)
 
@@ -41,6 +43,11 @@ def encrypt(params, pub, m):
         raise Exception("Message value to low or high.")
 
    # ADD CODE HERE
+   (G, g, h, o) = params
+   k = o.random()
+   c1 = k * g
+   c2 = k * pub + m * h
+   c = (c1, c2)
 
     return c
 
@@ -76,37 +83,43 @@ def decrypt(params, priv, ciphertext):
     a , b = ciphertext
 
    # ADD CODE HERE
+   hm = b - priv * a
 
-    return logh(params, hm)
+   return logh(params, hm)
 
 #####################################################
 # TASK 2 -- Define homomorphic addition and
 #           multiplication with a public value
-# 
+#
 
 def add(params, pub, c1, c2):
-    """ Given two ciphertexts compute the ciphertext of the 
+    """ Given two ciphertexts compute the ciphertext of the
         sum of their plaintexts.
     """
     assert isCiphertext(params, c1)
     assert isCiphertext(params, c2)
 
    # ADD CODE HERE
+   a1 ,b1 = c1
+   a2 ,b2 = c2
+   c3 = (a1+a2 , b1+b2)
 
     return c3
 
 def mul(params, pub, c1, alpha):
-    """ Given a ciphertext compute the ciphertext of the 
+    """ Given a ciphertext compute the ciphertext of the
         product of the plaintext time alpha """
     assert isCiphertext(params, c1)
 
    # ADD CODE HERE
+   a1 ,b1 = c1
+   c3 =(alpha * a1 , alpha * b1)
 
     return c3
 
 #####################################################
 # TASK 3 -- Define Group key derivation & Threshold
-#           decryption. Assume an honest but curious 
+#           decryption. Assume an honest but curious
 #           set of authorities.
 
 def groupKey(params, pubKeys=[]):
@@ -114,15 +127,18 @@ def groupKey(params, pubKeys=[]):
     (G, g, h, o) = params
 
    # ADD CODE HERE
+   pub = G.sum(pubKeys)
 
     return pub
 
 def partialDecrypt(params, priv, ciphertext, final=False):
-    """ Given a ciphertext and a private key, perform partial decryption. 
+    """ Given a ciphertext and a private key, perform partial decryption.
         If final is True, then return the plaintext. """
     assert isCiphertext(params, ciphertext)
-    
+
     # ADD CODE HERE
+    a1, b1 = ciphertext
+    b1 = b1 - priv * a1
 
     if final:
         return logh(params, b1)
@@ -135,14 +151,16 @@ def partialDecrypt(params, priv, ciphertext, final=False):
 #
 
 def corruptPubKey(params, priv, OtherPubKeys=[]):
-    """ Simulate the operation of a corrupt decryption authority. 
+    """ Simulate the operation of a corrupt decryption authority.
         Given a set of public keys from other authorities return a
         public key for the corrupt authority that leads to a group
         public key corresponding to a private key known to the
         corrupt authority. """
     (G, g, h, o) = params
-    
+
    # ADD CODE HERE
+   pub =  G.sum(OtherPubKeys) #groupKey(params,OtherPubKeys)
+   pub = priv * g - pub
 
     return pub
 
@@ -158,6 +176,12 @@ def encode_vote(params, pub, vote):
     assert vote in [0, 1]
 
    # ADD CODE HERE
+   if vote:
+       v0 = encrypt(params, pub, 0)
+       v1 = encrypt(params, pub, 1)
+   else:
+       v0 = encrypt(params, pub, 1)
+       v1 = encrypt(params, pub, 0)
 
     return (v0, v1)
 
@@ -165,8 +189,14 @@ def process_votes(params, pub, encrypted_votes):
     """ Given a list of encrypted votes tally them
         to sum votes for zeros and votes for ones. """
     assert isinstance(encrypted_votes, list)
-    
+
    # ADD CODE HERE
+    tv0 = encrypted_votes[0][0]
+    tv1 = encrypted_votes[0][1]
+    for encrypted_vote in encrypted_votes[1:]:
+        (v0,v1)= encrypted_vote
+        tv0 = add(params, pub, tv0, v0)
+        tv1 = add(params, pub, tv1, v1)
 
     return tv0, tv1
 
@@ -206,7 +236,7 @@ def simulate_poll(votes):
 ###########################################################
 # TASK Q1 -- Answer questions regarding your implementation
 #
-# Consider the following game between an adversary A and honest users H1 and H2: 
+# Consider the following game between an adversary A and honest users H1 and H2:
 # 1) H1 picks 3 plaintext integers Pa, Pb, Pc arbitrarily, and encrypts them to the public
 #    key of H2 using the scheme you defined in TASK 1.
 # 2) H1 provides the ciphertexts Ca, Cb and Cc to H2 who flips a fair coin b.
@@ -214,18 +244,29 @@ def simulate_poll(votes):
 #    In case b=1 then H2 homomorphically computes C as the encryption of Pb plus Pc.
 # 3) H2 provides the adversary A, with Ca, Cb, Cc and C.
 #
-# What is the advantage of the adversary in guessing b given your implementation of 
+# What is the advantage of the adversary in guessing b given your implementation of
 # Homomorphic addition? What are the security implications of this?
 
-""" Your Answer here """
+"""
+The advantage of the adverdary is that he has Ca, Cb, Cc, and C and can just add
+two of the Ci's together and deduce b since the encryption scheme is homomorphic.
+This degrades security of the scheme since the adversary knows the value of b.
+"""
 
 ###########################################################
 # TASK Q2 -- Answer questions regarding your implementation
 #
 # Given your implementation of the private poll in TASK 5, how
 # would a malicious user implement encode_vote to (a) distrupt the
-# poll so that it yields no result, or (b) manipulate the poll so 
-# that it yields an arbitrary result. Can those malicious actions 
+# poll so that it yields no result, or (b) manipulate the poll so
+# that it yields an arbitrary result. Can those malicious actions
 # be detected given your implementation?
 
-""" Your Answer here """
+"""
+(a) the malicious user can input incorrect values for the vote in order for the
+pool to yield no result
+(b) the malicious user can input different numbers other than 0 or 1 in order
+for the poll to yield and arbitrary result
+These actions will be deteted since our implementation has assertions to
+validate the input.
+"""
